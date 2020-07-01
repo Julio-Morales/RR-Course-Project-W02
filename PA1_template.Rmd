@@ -1,0 +1,179 @@
+---
+title: "RR Course Project 1"
+author: "Julio Morales"
+date: "28-06-2020"
+output:
+  html_document: 
+    keep_md: yes
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Reproducible Research Course Project 1.
+
+## Introduction
+
+"It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as a Fitbit, Nike Fuelband, or Jawbone Up. These type of devices are part of the "quantified self" movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data."^1^
+
+This project "...makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day."^2^
+
+The data for this project can be downloaded from the course web site:
+
+Dataset: [Activity monitoring data]( https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip) [52K]
+
+"The variables included in this dataset are:
+
+**steps**: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+
+**date**: The date on which the measurement was taken in YYYY-MM-DD format
+
+**interval**: Identifier for the 5-minute interval in which measurement was taken
+
+The dataset is stored in a comma-separated-value (CSV) file and there are a total of 17,568 observations in this dataset."^3^
+
+
+## Loading and preprocessing the data.
+
+### Getting data from source.
+
+According to assignment, data can be obtained from the following URL
+[https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip) in zip format.
+
+Required libraries will be called for further use.
+
+Assume that observations file is stored in directory "./data" and "activity.csv" has been extracted from "repdata_data_activity.zip", therefore, step observations can be stored into "data" dataset.
+
+```{r Data, echo=TRUE}
+library(dplyr)
+library(ggplot2)
+setwd("C:/Users/owner/Documents/R Studio/Data")
+data <- read.csv(file = "activity.csv",header = TRUE,stringsAsFactors = FALSE)
+head(data)
+str(data)
+```
+*date* column format is character, therefore is need to be converted as date format.
+
+```{r date conversion, echo=TRUE}
+data$date <- as.Date(data$date, "%Y-%m-%d")
+```
+
+Some data is missing and it is better to know how many they are and their dates:
+
+```{r missing data, echo=TRUE}
+sum(is.na(data$steps)) #Total Observations 17,568
+unique(data[is.na(data$steps),2])
+```
+2304 observations of 17,568 are missing and corresponds to 8 of 61 days recorded. Less than 14%
+
+## Steps by day analysis.
+
+Histogram of steps. Data must be grouped and summarise by date and ignoring missing observations:
+
+```{r Histogram, echo=TRUE}
+total <- data[!is.na(data$steps),] %>% 
+  group_by(date) %>% 
+  summarise(Total = sum(steps))
+head(total)
+h <- hist(total$Total,col = "lightblue", xlab = "steps", main = " Total Steps by day", ylim = c(0, 30) )
+text(h$mids,h$counts,labels = h$counts,adj=c(0.5, -0.5))
+```
+
+28 of 53 days with observations have between 10,000 and 15,000 steps.
+
+Mean and median of total steps:
+
+```{r Mean and Median with filled data, echo=TRUE}
+mean(total$Total)
+median(total$Total)
+```
+
+Mean and median are very similar and they are consistent with histogram distribution.
+
+## Average steps by activity pattern.
+
+```{r average steps}
+average <- data[!is.na(data$steps),] %>% 
+  group_by(interval) %>%
+  summarise(Average = mean(steps))
+plot(average$interval,average$Average, type="l",xlab = "Interval", ylab = "Average of steps", main = "Average of step by activity pattern")
+```
+
+## Imputing missing values.
+
+As we observed before, there are 2304 missing observations of 17,568 and corresponds to 8 of 61 days recorded. 
+
+Mean value per activity interval in *average* dataset can be used to substitute these missing values.
+
+By splitting *data* by NA and not NA observations, it can be added mean values for interval with missing observations.
+
+```{r adding mean value to missing observations, echo=TRUE}
+missing <- data[is.na(data$steps),]
+observations <- data[!is.na(data$steps),]
+filldata <- merge(missing,average,by.x=3,by.y=1)
+head(filldata)
+str(missing)
+str(filldata)
+filldata <- filldata[,c(4,3,1)] #Removing steps column with NA
+names(filldata)[1] <- "steps"
+modified <- rbind(observations,filldata) # binding observations and filled data
+modified <- modified[order(modified[2],modified[3]),] # ordering by date and interval
+str(modified)
+```
+
+Histogram of steps with filled data. Data must be grouped and summarise by date:
+
+```{r Histogram with filled data, echo=TRUE}
+totalmod <- modified %>% 
+  group_by(date) %>% 
+  summarise(Total = sum(steps))
+head(totalmod)
+h <- hist(totalmod$Total,col = "lightgreen", xlab = "steps", main = " Total Steps by day with filled data", ylim = c(0, 40) )
+text(h$mids,h$counts,labels = h$counts,adj=c(0.5, -0.5))
+```
+
+36 of 61 days with observations have between 10,000 and 15,000 steps.
+
+Mean and median of total steps:
+
+```{r Mean and Median}
+mean(totalmod$Total)
+median(totalmod$Total)
+```
+Both median and mean converge to average value. Additionally, median value differs from original measurement. From this perspective, impact seems to be very little by substituting missing values with its average.
+
+Also, all observations seems to be completed and it is important to be aware that filled data is not an integer value of *steps*, also could be useful to comment and identify which *dates* and *intervals* have been filled with its average values to avoid false conclusions.
+
+## Analysis of weekdays and weekend patterns.
+
+*type* is an added column to *modified* dataset, it evaluates if date is a weekend or weekday. With this new variable, *modified* dataset can be analysed by this parameter and determine if weekend behavior could be different from weekdays.
+
+```{R Weekday}
+modified$type <- ifelse(format(modified$date,"%u") %in% c(6,7),"weekend","weekday")
+str(modified)
+head(unique(paste(modified$date,format(modified$date,"%a"),modified$type)),14)
+```
+
+
+
+```{R Weekend vs Weekday}
+weekdayave <- modified %>% 
+  group_by(type,interval) %>%
+  summarise(Average = mean(steps))
+
+qplot(interval,Average, data = weekdayave, facets = type~., geom = "path", ylab="Number of steps", main = "Weekday and Weekend steps behavior")
+
+tapply(weekdayave$Average, weekdayave$type, summary)
+tapply(weekdayave$Average, weekdayave$type, sum)
+```
+Observations on weekend are almost 2,000 steps more than weekday, about 19% more. In addition, weekend curve is over 25 steps per interval later than weekday, and it get under 25 steps by the end of the day, also later than weekday.
+
+Maximum step per interval is greatest during weekdays.
+
+# References
+Coursera, Reproducible Research Course Project Assignment instructions, [https://www.coursera.org/learn/reproducible-research/peer/gYyPt/course-project-1](https://www.coursera.org/learn/reproducible-research/peer/gYyPt/course-project-1)
+
+# Citations
+^1^, ^2^, ^3^  Coursera, Reproducible Research, Course project assignment instructions. [https://www.coursera.org/learn/reproducible-research/peer/gYyPt/course-project-1](https://www.coursera.org/learn/reproducible-research/peer/gYyPt/course-project-1)

@@ -200,6 +200,16 @@ plot(average$interval,average$Average, type="l",xlab = "Interval", ylab = "Avera
 
 ![](PA1_template_files/figure-html/average steps-1.png)<!-- -->
 
+Maximum number of steps is:
+
+```r
+max(average$Average)
+```
+
+```
+## [1] 206.1698
+```
+
 ## Imputing missing values.
 
 As we observed before, there are 2304 missing observations of 17,568 and corresponds to 8 of 61 days recorded. 
